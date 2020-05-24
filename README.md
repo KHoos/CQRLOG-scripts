@@ -19,3 +19,8 @@ with gcmwin to create maps of squares worked and confirmed
 
 Perl script to export the list of most recent contacts as Geo JSON file,
 which is used to create the map at https://pe4kh.idefix.net/qsomap.html
+
+# qslmaximizer.pl
+
+Perl script to check for contacts that could be added to QSL cards already
+selected to be sent.
