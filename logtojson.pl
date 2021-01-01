@@ -14,8 +14,7 @@ use DBI;
 use JSON;
 use Locale::Country;
 
-my $pi;
-$pi = atan2(1,1) * 4;
+use Geo::Distance;
 
 my $debug = 0;
 
@@ -23,6 +22,10 @@ my $debug = 0;
 # adjust the path for your own cqrlog
 
 my $dsn = "DBI:mysql:database=cqrlog002;mysql_socket=/home/koos/.config/cqrlog/database/sock";
+
+# adjust this for your home location
+#
+my ($homelat,$homelong)=maidenhead2latlong("JO22NC");
 
 my $dbh = DBI->connect($dsn, { RaiseError => 1, PrintError => 0,} );
 
@@ -35,7 +38,7 @@ if (!$dbh){
 
 my @mappoints;
 
-my ($homelat,$homelong)=maidenhead2latlong("JO22NC");
+my $geo = new Geo::Distance;
 
 my $sth = $dbh->prepare("
 	SELECT callsign,band,mode,loc,rst_s,rst_r,qsodate,time_on,time_off,freq
@@ -54,8 +57,10 @@ while ( my $row = $sth->fetchrow_hashref ) {
 	
 	if ($row->{loc} ne ""){
 		my ($latitude,$longitude)=maidenhead2latlong($row->{loc});
-		my $distance = distance($homelat,$homelong,$latitude,$longitude,"K");
-		#printf "Converted %s to %f,%f, distance %f\n",$row->{loc},$longitude,$latitude,$distance;
+		my $distance = $geo->distance('kilometer', $homelong,$homelat => $longitude,$latitude);
+		if ($debug){
+			printf "Converted %s to %f,%f, distance %f\n",$row->{loc},$longitude,$latitude,$distance;
+		}
 		$description=sprintf "<h3>%s</h3><div style=\"line-height: 1.2em\">%s %s<br>%s on %s MHz<br>Distance %.0f km (%d digit locator)</div>",$row->{callsign},$row->{qsodate},$row->{time_on},$row->{mode},$row->{freq},$distance,length($row->{loc});
 		push @mappoints, {
 			type => 'Feature',
@@ -105,75 +110,3 @@ sub maidenhead2latlong {
     return ( ( $lat / 3600 ) - 90, ( $long / 3600 ) - 180 );
 }
 
-#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-#:::                                                                         :::
-#:::  This routine calculates the distance between two points (given the     :::
-#:::  latitude/longitude of those points). It is being used to calculate     :::
-#:::  the distance between two locations using GeoDataSource(TM) products    :::
-#:::                                                                         :::
-#:::  Definitions:                                                           :::
-#:::    South latitudes are negative, east longitudes are positive           :::
-#:::                                                                         :::
-#:::  Passed to function:                                                    :::
-#:::    lat1, lon1 = Latitude and Longitude of point 1 (in decimal degrees)  :::
-#:::    lat2, lon2 = Latitude and Longitude of point 2 (in decimal degrees)  :::
-#:::    unit = the unit you desire for results                               :::
-#:::           where: 'M' is statute miles (default)                         :::
-#:::                  'K' is kilometers                                      :::
-#:::                  'N' is nautical miles                                  :::
-#:::                                                                         :::
-#:::  Worldwide cities and other features databases with latitude longitude  :::
-#:::  are available at https://www.geodatasource.com	                         :::
-#:::                                                                         :::
-#:::  For enquiries, please contact sales@geodatasource.com                  :::
-#:::                                                                         :::
-#:::  Official Web site: https://www.geodatasource.com                        :::
-#:::                                                                         :::
-#:::            GeoDataSource.com (C) All Rights Reserved 2017               :::
-#:::                                                                         :::
-#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-
-
-sub distance {
-	my ($lat1, $lon1, $lat2, $lon2, $unit) = @_;
-	my $theta = $lon1 - $lon2;
-	my $dist = sin(deg2rad($lat1)) * sin(deg2rad($lat2)) + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * cos(deg2rad($theta));
-	  $dist  = acos($dist);
-	$dist = rad2deg($dist);
-	$dist = $dist * 60 * 1.1515;
-	if ($unit eq "K") {
-		$dist = $dist * 1.609344;
-	} elsif ($unit eq "N") {
-		$dist = $dist * 0.8684;
-	}
-	return ($dist);
-}
-
-#::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-#:::  This function get the arccos function using arctan function   :::
-#::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-sub acos {
-	my ($rad) = @_;
-	my $ret = atan2(sqrt(1 - $rad**2), $rad);
-	return $ret;
-}
-
-#::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-#:::  This function converts decimal degrees to radians             :::
-#::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-sub deg2rad {
-	my ($deg) = @_;
-	return ($deg * $pi / 180);
-}
-
-#::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-#:::  This function converts radians to decimal degrees             :::
-#::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-sub rad2deg {
-	my ($rad) = @_;
-	return ($rad * 180 / $pi);
-}
-
-#print distance(32.9697, -96.80322, 29.46786, -98.53506, "M") . " Miles\n";
-#print distance(32.9697, -96.80322, 29.46786, -98.53506, "K") . " Kilometers\n";
-#print distance(32.9697, -96.80322, 29.46786, -98.53506, "N") . " Nautical Miles\n";
