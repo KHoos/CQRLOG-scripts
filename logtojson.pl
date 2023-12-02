@@ -43,6 +43,7 @@ my $geo = new Geo::Distance;
 my $sth = $dbh->prepare("
 	SELECT callsign,band,mode,loc,rst_s,rst_r,qsodate,time_on,time_off,freq
 	FROM cqrlog_main
+	WHERE loc != \"\"
 	ORDER BY qsodate DESC,time_on DESC LIMIT 150");
 
 if (!$sth->execute){
